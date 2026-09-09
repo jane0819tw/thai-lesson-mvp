@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>泰時刻備課系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#C9841A;--gm:#E8A93A;--cr:#FDF8EF;--cd:#F5EDD8;
+  --br:#5C3A1E;--bm:#8B5E34;--tt:#AA8860;--bd:#E8D5B0;--bs:#C9A870;
+  --danger:#B0392B;
+}
+body{background:var(--cr);color:var(--br);font-family:"Noto Sans TC",sans-serif;min-height:100vh;}
+#app{max-width:760px;margin:0 auto;padding:2rem 1.25rem 5rem;}
+h1{font-size:22px;font-weight:700;margin-bottom:4px;}
+h2{font-size:17px;font-weight:700;margin-bottom:10px;}
+.sub{font-size:13px;color:var(--bm);margin-bottom:1.5rem;}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;}
+button{font-family:inherit;cursor:pointer;}
+.btn{padding:10px 20px;border-radius:22px;border:1.5px solid var(--bs);background:white;color:var(--bm);font-size:14px;transition:all .12s;}
+.btn:hover{border-color:var(--gold);color:var(--gold);}
+.btn.pr{background:var(--gold);border-color:var(--gold);color:white;}
+.btn.pr:hover{background:var(--gm);}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--tt);font-size:13px;padding:6px 10px;}
+.btn.ghost:hover{color:var(--danger);}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.card{background:white;border:1px solid var(--bd);border-radius:14px;padding:1.1rem 1.3rem;margin-bottom:12px;}
+input[type=text],textarea{width:100%;border:1.5px solid var(--bd);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--br);background:var(--cr);}
+textarea{min-height:160px;resize:vertical;line-height:1.6;}
+label{display:block;font-size:13px;color:var(--bm);font-weight:500;margin:14px 0 6px;}
+label:first-child{margin-top:0;}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:1.2rem;}
+.song-row{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--bd);}
+.song-row:last-child{border-bottom:none;}
+.song-title{font-weight:500;}
+.badge{font-size:11px;padding:2px 9px;border-radius:12px;margin-left:8px;}
+.badge.done{background:#E8F3DE;color:#3B6D11;}
+.badge.progress{background:var(--cd);color:var(--bm);}
+.empty{text-align:center;padding:3rem 1rem;color:var(--tt);font-size:14px;}
+.progress-wrap{display:flex;align-items:center;gap:10px;margin-bottom:1rem;}
+.progress-track{flex:1;height:5px;background:var(--bd);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--gold);border-radius:3px;transition:width .3s;}
+.progress-label{font-size:12px;color:var(--tt);white-space:nowrap;}
+.line-card{border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--cr);}
+.line-thai{font-family:"Sarabun",sans-serif;font-size:19px;margin-bottom:4px;}
+.line-tr{font-size:12px;color:var(--bm);font-style:italic;margin-bottom:10px;}
+.word-list{display:flex;flex-wrap:wrap;gap:14px;}
+.word{display:flex;flex-direction:column;align-items:center;min-width:30px;}
+.word-t{font-family:"Sarabun",sans-serif;font-size:17px;border-bottom:2px solid var(--bs);padding-bottom:2px;}
+.word-p{font-size:10px;color:var(--tt);margin-top:2px;}
+.word-z{font-size:11px;color:var(--bm);font-weight:500;}
+.word-ex{margin-top:4px;font-size:10px;color:var(--tt);max-width:150px;text-align:center;line-height:1.4;background:#FFF8EC;border-radius:6px;padding:3px 6px;}
+.loading{text-align:center;padding:2.5rem 1rem;color:var(--tt);font-size:14px;}
+.error-box{background:#FBEAEA;border:1px solid #E8B8B0;color:var(--danger);border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:12px;}
+.adjust-box{margin-top:1.2rem;padding-top:1.2rem;border-top:1px dashed var(--bd);}
+a.back{font-size:13px;color:var(--bm);text-decoration:none;display:inline-block;margin-bottom:12px;}
+a.back:hover{color:var(--gold);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const LS_INDEX = "tlm_songs_index";
+const LS_SETTINGS = "tlm_settings";
+const BATCH_SIZE = 5;
+
+const app = document.getElementById("app");
+
+// ---------- 儲存工具 ----------
+function getSettings(){
+  try{ return JSON.parse(localStorage.getItem(LS_SETTINGS)) || {}; }catch(e){ return {}; }
+}
+function saveSettings(s){ localStorage.setItem(LS_SETTINGS, JSON.stringify(s)); }
+function getIndex(){
+  try{ return JSON.parse(localStorage.getItem(LS_INDEX)) || []; }catch(e){ return []; }
+}
+function saveIndex(idx){ localStorage.setItem(LS_INDEX, JSON.stringify(idx)); }
+function getSong(id){
+  try{ return JSON.parse(localStorage.getItem("tlm_song_"+id)); }catch(e){ return null; }
+}
+function saveSong(song){ localStorage.setItem("tlm_song_"+song.id, JSON.stringify(song)); }
+function deleteSong(id){
+  localStorage.removeItem("tlm_song_"+id);
+  saveIndex(getIndex().filter(s => s.id !== id));
+}
+
+// ---------- Worker 呼叫 ----------
+async function callBatchApi({ batchText, knownVocab, adjustmentNote, previousLines }){
+  const { workerUrl, appToken } = getSettings();
+  const resp = await fetch(workerUrl.replace(/\/$/,"") + "/api/batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-App-Token": appToken },
+    body: JSON.stringify({ batchText, knownVocab, adjustmentNote, previousLines })
+  });
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.error || "呼叫失敗");
+  return data.lines;
+}
+
+// ---------- 畫面路由 ----------
+let route = { view: "list" };
+
+function render(){
+  const { workerUrl, appToken } = getSettings();
+  if(!workerUrl || !appToken){ route = { view: "settings", next: route }; }
+  if(route.view === "settings") return renderSettings();
+  if(route.view === "list") return renderList();
+  if(route.view === "new") return renderNewSong();
+  if(route.view === "batch") return renderBatch();
+  if(route.view === "done") return renderDone();
+}
+
+// ---------- 設定畫面 ----------
+function renderSettings(){
+  const s = getSettings();
+  app.innerHTML = `
+    <h1>備課系統設定</h1>
+    <p class="sub">第一次使用需要設定 Cloudflare Worker 網址與存取密碼（部署 Worker 時你自己設定的 APP_TOKEN）。之後可以隨時修改。</p>
+    <div class="card">
+      <label>Cloudflare Worker 網址</label>
+      <input type="text" id="in-url" placeholder="https://thai-lesson-prep-worker.你的帳號.workers.dev" value="${s.workerUrl||""}">
+      <label>存取密碼（APP_TOKEN）</label>
+      <input type="text" id="in-token" placeholder="與 Worker 設定的 APP_TOKEN 相同" value="${s.appToken||""}">
+      <div class="row">
+        <button class="btn pr" id="btn-save">儲存</button>
+      </div>
+    </div>`;
+  document.getElementById("btn-save").onclick = () => {
+    const workerUrl = document.getElementById("in-url").value.trim();
+    const appToken = document.getElementById("in-token").value.trim();
+    if(!workerUrl || !appToken){ alert("請填寫完整資訊"); return; }
+    saveSettings({ workerUrl, appToken });
+    route = route.next && route.next.view !== "settings" ? route.next : { view: "list" };
+    render();
+  };
+}
+
+// ---------- 歌曲列表 ----------
+function renderList(){
+  const idx = getIndex();
+  app.innerHTML = `
+    <div class="bar">
+      <div><h1>泰時刻備課系統</h1><p class="sub" style="margin-bottom:0">泰文歌曲備課工具</p></div>
+      <button class="btn ghost" id="btn-settings">設定</button>
+    </div>
+    <div class="row" style="margin-top:0;margin-bottom:1.2rem;">
+      <button class="btn pr" id="btn-new">＋ 新增歌曲</button>
+    </div>
+    <div class="card" id="song-list"></div>
+  `;
+  document.getElementById("btn-settings").onclick = () => { route = { view: "settings", next: { view: "list" } }; render(); };
+  document.getElementById("btn-new").onclick = () => { route = { view: "new" }; render(); };
+
+  const listEl = document.getElementById("song-list");
+  if(idx.length === 0){
+    listEl.innerHTML = `<div class="empty">還沒有歌曲，點上面「＋ 新增歌曲」開始備課</div>`;
+    return;
+  }
+  listEl.innerHTML = idx.slice().reverse().map(s => `
+    <div class="song-row">
+      <div>
+        <span class="song-title">${escapeHtml(s.titleZh || s.titleTh || "未命名")}</span>
+        <span class="badge ${s.status==='completed'?'done':'progress'}">${s.status==='completed'?'已完成':'備課中'}</span>
+      </div>
+      <div class="row" style="margin:0;gap:6px;">
+        ${s.status==='completed'
+          ? `<button class="btn" data-act="download" data-id="${s.id}">下載頁面</button>`
+          : `<button class="btn" data-act="continue" data-id="${s.id}">繼續備課</button>`}
+        <button class="btn ghost" data-act="delete" data-id="${s.id}">刪除</button>
+      </div>
+    </div>
+  `).join("");
+
+  listEl.querySelectorAll("button[data-act]").forEach(btn => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const act = btn.dataset.act;
+      if(act === "delete"){
+        if(confirm("確定要刪除這首歌的所有資料嗎？此動作無法復原。")){
+          deleteSong(id);
+          render();
+        }
+      } else if(act === "continue"){
+        route = { view: "batch", id };
+        render();
+      } else if(act === "download"){
+        const song = getSong(id);
+        if(song && song.finalHtml) triggerDownload(song);
+      }
+    };
+  });
+}
+
+// ---------- 新增歌曲 ----------
+function renderNewSong(){
+  app.innerHTML = `
+    <a href="#" class="back" id="back-link">← 返回列表</a>
+    <h1>新增歌曲</h1>
+    <p class="sub">貼上整理過的完整歌詞（一行一句），系統會自動分批（每批 ${BATCH_SIZE} 句）逐批生成。</p>
+    <div class="card">
+      <label>泰文歌名</label>
+      <input type="text" id="in-th" placeholder="เพลง...">
+      <label>中文歌名</label>
+      <input type="text" id="in-zh" placeholder="例如：越了解越愛你">
+      <label>歌手／來源</label>
+      <input type="text" id="in-artist" placeholder="例如：OST. xxxxxx">
+      <label>YouTube 影片 ID（網址 v= 後面那段，選填）</label>
+      <input type="text" id="in-yt" placeholder="例如：v5wvIGxvdLI">
+      <label>完整歌詞（一行一句）</label>
+      <textarea id="in-lyrics" placeholder="第一句歌詞\n第二句歌詞\n..."></textarea>
+      <div class="row">
+        <button class="btn pr" id="btn-start">開始批次處理</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("back-link").onclick = (e) => { e.preventDefault(); route = { view: "list" }; render(); };
+  document.getElementById("btn-start").onclick = () => {
+    const titleTh = document.getElementById("in-th").value.trim();
+    const titleZh = document.getElementById("in-zh").value.trim();
+    const artist = document.getElementById("in-artist").value.trim();
+    const youtubeId = document.getElementById("in-yt").value.trim();
+    const rawLyrics = document.getElementById("in-lyrics").value.trim();
+    if(!rawLyrics){ alert("請貼上歌詞"); return; }
+
+    const allLines = rawLyrics.split("\n").map(l => l.trim()).filter(Boolean);
+    const batches = [];
+    for(let i=0; i<allLines.length; i+=BATCH_SIZE){
+      batches.push(allLines.slice(i, i+BATCH_SIZE).join("\n"));
+    }
+
+    const id = "song_" + Date.now();
+    const song = {
+      id, titleTh, titleZh, artist, youtubeId, rawLyrics,
+      batches, currentBatchIndex: 0, confirmedLines: [], vocabDict: {},
+      pendingLines: null, pendingError: null,
+      status: "in_progress", createdAt: Date.now(), finalHtml: null
+    };
+    saveSong(song);
+    const idx = getIndex();
+    idx.push({ id, titleZh: titleZh, titleTh: titleTh, status: "in_progress" });
+    saveIndex(idx);
+
+    route = { view: "batch", id };
+    render();
+  };
+}
+
+// ---------- 批次審核畫面 ----------
+function renderBatch(){
+  const song = getSong(route.id);
+  if(!song){ route = { view: "list" }; render(); return; }
+
+  if(song.currentBatchIndex >= song.batches.length){
+    finalizeSong(song);
+    return;
+  }
+
+  const total = song.batches.length;
+  const cur = song.currentBatchIndex;
+  const pct = Math.round((cur)/total*100);
+
+  app.innerHTML = `
+    <a href="#" class="back" id="back-link">← 返回列表（進度已自動儲存）</a>
+    <h1>${escapeHtml(song.titleZh || song.titleTh || "備課中")}</h1>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="progress-label">第 ${cur+1} / ${total} 批</div>
+    </div>
+    <div id="batch-content"></div>
+  `;
+  document.getElementById("back-link").onclick = (e) => { e.preventDefault(); route = { view: "list" }; render(); };
+
+  const content = document.getElementById("batch-content");
+
+  if(song.pendingLines){
+    renderBatchResult(content, song);
+  } else if(song.pendingError){
+    content.innerHTML = `<div class="error-box">${escapeHtml(song.pendingError)}</div>
+      <div class="row"><button class="btn pr" id="btn-retry">重試</button></div>`;
+    document.getElementById("btn-retry").onclick = () => generateCurrentBatch(song);
+  } else {
+    content.innerHTML = `<div class="loading">正在生成第 ${cur+1} 批歌詞內容，請稍候...</div>`;
+    generateCurrentBatch(song);
+  }
+}
+
+async function generateCurrentBatch(song, adjustmentNote){
+  const batchText = song.batches[song.currentBatchIndex];
+  try{
+    const lines = await callBatchApi({
+      batchText,
+      knownVocab: song.vocabDict,
+      adjustmentNote: adjustmentNote || null,
+      previousLines: adjustmentNote ? song.pendingLines : null
+    });
+    song.pendingLines = lines;
+    song.pendingError = null;
+  }catch(err){
+    song.pendingError = err.message || "生成失敗，請重試";
+    song.pendingLines = null;
+  }
+  saveSong(song);
+  render();
+}
+
+function renderBatchResult(content, song){
+  const lines = song.pendingLines;
+  content.innerHTML = `
+    <div id="lines-render"></div>
+    <div class="adjust-box">
+      <label>不滿意這批結果？輸入調整意見後重新生成整批：</label>
+      <textarea id="in-adjust" placeholder="例如：第二句的音標調號好像不對、第三個單字的例句太難了..." style="min-height:70px"></textarea>
+      <div class="row">
+        <button class="btn" id="btn-regen">依意見重新生成</button>
+        <button class="btn pr" id="btn-confirm">確認，下一批</button>
+      </div>
+    </div>
+  `;
+  const linesEl = document.getElementById("lines-render");
+  linesEl.innerHTML = lines.map(line => `
+    <div class="line-card">
+      <div class="line-thai">${line.words.map(w=>escapeHtml(w.t)).join("")}</div>
+      <div class="line-tr">${escapeHtml(line.tr || "")}</div>
+      <div class="word-list">
+        ${line.words.map(w => `
+          <div class="word">
+            <div class="word-t">${escapeHtml(w.t)}</div>
+            <div class="word-p">${escapeHtml(w.p||"")}</div>
+            <div class="word-z">${escapeHtml(w.z||"")}</div>
+            ${w.ex ? `<div class="word-ex">${escapeHtml(w.ex.thai||"")}<br>${escapeHtml(w.ex.chinese||"")}</div>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+
+  document.getElementById("btn-regen").onclick = () => {
+    const note = document.getElementById("in-adjust").value.trim();
+    if(!note){ alert("請輸入調整意見"); return; }
+    document.getElementById("batch-content").innerHTML = `<div class="loading">正在依意見重新生成，請稍候...</div>`;
+    generateCurrentBatch(song, note);
+  };
+
+  document.getElementById("btn-confirm").onclick = () => {
+    // 合併進 confirmedLines
+    song.confirmedLines = song.confirmedLines.concat(lines);
+    // 更新詞彙庫（只在不存在時新增，維持既有內容不變）
+    lines.forEach(line => {
+      line.words.forEach(w => {
+        if(!song.vocabDict[w.t]){
+          song.vocabDict[w.t] = { p: w.p, z: w.z, ex: w.ex };
+        }
+      });
+    });
+    song.currentBatchIndex += 1;
+    song.pendingLines = null;
+    song.pendingError = null;
+    saveSong(song);
+    render();
+  };
+}
+
+// ---------- 完成：組成最終頁面 ----------
+async function finalizeSong(song){
+  app.innerHTML = `<div class="loading">正在組合最終學習頁面...</div>`;
+  try{
+    const templateResp = await fetch("assets/song-template.html");
+    const template = await templateResp.text();
+    const html = buildFinalHtml(song, template);
+    song.finalHtml = html;
+    song.status = "completed";
+    saveSong(song);
+    const idx = getIndex();
+    const entry = idx.find(s => s.id === song.id);
+    if(entry) entry.status = "completed";
+    saveIndex(idx);
+    route = { view: "done", id: song.id };
+    render();
+  }catch(err){
+    app.innerHTML = `<div class="error-box">組合頁面時發生錯誤：${escapeHtml(err.message)}</div>
+      <div class="row"><button class="btn pr" id="btn-back">返回列表</button></div>`;
+    document.getElementById("btn-back").onclick = () => { route = { view: "list" }; render(); };
+  }
+}
+
+function buildFinalHtml(song, template){
+  const lyricsJson = JSON.stringify(song.confirmedLines);
+  const titleTh = song.titleTh || song.titleZh || "泰文歌曲";
+  const titleZh = song.titleZh || song.titleTh || "";
+  const artist = song.artist || "";
+  const youtubeId = song.youtubeId || "";
+  const coverHtml = youtubeId
+    ? `<img src="https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg" alt="${escapeHtml(titleTh)}" style="width:100%;display:block;" onerror="this.src='https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg'">`
+    : "";
+
+  let html = template;
+  html = html.split("%%SONG_TITLE_TH%%").join(titleTh);
+  html = html.split("%%SONG_TITLE_ZH%%").join(titleZh);
+  html = html.split("%%SONG_ARTIST%%").join(artist);
+  html = html.split("%%YOUTUBE_ID%%").join(youtubeId);
+  html = html.split("%%COVER_HTML%%").join(coverHtml);
+  html = html.split("%%LYRICS_JSON%%").join(lyricsJson);
+  html = html.split("%%TOTAL%%").join(String(song.confirmedLines.length));
+  return html;
+}
+
+function triggerDownload(song){
+  const blob = new Blob([song.finalHtml], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const slug = (song.titleZh || song.titleTh || song.id).replace(/[^\p{L}\p{N}]+/gu, "-");
+  a.href = url;
+  a.download = `thai-song-${slug}.html`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- 完成畫面 ----------
+function renderDone(){
+  const song = getSong(route.id);
+  if(!song){ route = { view: "list" }; render(); return; }
+  app.innerHTML = `
+    <h1>🎉 備課完成</h1>
+    <p class="sub">共處理 ${song.confirmedLines.length} 句歌詞，可以下載成 HTML 學習頁面。</p>
+    <div class="card">
+      <div class="row" style="margin-top:0">
+        <button class="btn pr" id="btn-dl">下載學習頁面</button>
+        <button class="btn" id="btn-list">返回列表</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("btn-dl").onclick = () => triggerDownload(song);
+  document.getElementById("btn-list").onclick = () => { route = { view: "list" }; render(); };
+}
+
+function escapeHtml(str){
+  return String(str==null?"":str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+
+render();
+</script>
+</body>
+</html>
